@@ -52,8 +52,22 @@ def test_sample_fixture_resolves_5186():
     assert result.false_easting == 200000.0
     assert result.latitude_of_origin == 38.0
     assert result.datum in ("GRS1980", "GRS80", "GRS_1980")
+    # 실제 포맷은 geometry.coordinates 에 중첩 → offset 파싱돼야 함.
+    assert result.offset == (0.0, 0.0, 0.0)
     # coordinates [0,0,0] → 시나리오 판별 필요 경고가 있어야 한다.
     assert any("시나리오" in w for w in result.warnings)
+
+
+def test_nested_geometry_coordinates():
+    """coordinates 가 geometry 밑에 중첩된 실제 .pos 구조도 파싱한다."""
+    text = (
+        '{"geometry":{"coordinates":[224614.4, 450291.9, 100.0]},'
+        '"crs":{"properties":{"name":'
+        '"central_meridian 127 false_northing 600000"}}}'
+    )
+    result = parse_pos_text(text)
+    assert result.offset == (224614.4, 450291.9, 100.0)
+    assert result.epsg == 5186
 
 
 def test_name_string_is_ignored_for_epsg():

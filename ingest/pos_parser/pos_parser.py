@@ -179,7 +179,13 @@ def parse_pos_text(text: str) -> PosParseResult:
                 name = props.get("name")
                 if isinstance(name, str):
                     crs_name_wkt = name
+        # coordinates 는 최상위 또는 geometry 밑에 있을 수 있다 (실제 InfraWorks
+        # .pos 는 geometry.coordinates 형태). 둘 다 지원.
         coords = data.get("coordinates")
+        if coords is None:
+            geom = data.get("geometry")
+            if isinstance(geom, dict):
+                coords = geom.get("coordinates")
         if isinstance(coords, (list, tuple)) and len(coords) >= 2:
             x = float(coords[0])
             y = float(coords[1])

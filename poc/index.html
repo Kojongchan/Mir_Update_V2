@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PoC 1 — xeokit 좌표 지터 검증 (R1)</title>
+<link rel="icon" href="data:," />
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: system-ui, sans-serif; }
+  #canvas { width: 100vw; height: 100vh; display: block; background: #0b1020; }
+  #hud {
+    position: fixed; top: 12px; left: 12px; z-index: 10;
+    background: rgba(10,16,32,.82); color: #dfe7ff; padding: 12px 14px;
+    border-radius: 10px; font-size: 13px; line-height: 1.5; max-width: 380px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.4);
+  }
+  #hud b { color: #8fb8ff; }
+  #fps { font-size: 22px; font-weight: 700; color: #7CFF9B; }
+  #fps.bad { color: #ff7c7c; }
+  .row { margin: 2px 0; }
+  code { color: #ffd479; }
+  #controls { position: fixed; bottom: 12px; left: 12px; z-index: 10; }
+  button {
+    background: #2a3a66; color: #dfe7ff; border: 1px solid #3f5aa6;
+    padding: 8px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; margin-right: 6px;
+  }
+  button:hover { background: #35488a; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="hud">
+  <div class="row"><b>PoC 1 · R1 좌표 지터 검증</b></div>
+  <div class="row">FPS <span id="fps">—</span> <span style="font-size:11px;color:#9fb0d8">(실 GPU에서 측정)</span></div>
+  <div class="row">상태: <span id="status">로딩 중…</span></div>
+  <div class="row">엔진: xeokit (dtxEnabled) · glTF</div>
+  <div class="row">월드 AABB(실좌표):</div>
+  <div class="row"><code id="aabb">—</code></div>
+  <div class="row">정점을 실 TM 좌표(≈22만/45만)에 배치. re-center 없음.</div>
+  <div class="row" style="margin-top:6px;color:#9fb0d8">
+    카메라를 마우스로 돌려보며 <b>떨림(지터)/z-fighting</b>이 없는지 눈으로 확인하세요.
+  </div>
+</div>
+<div id="controls">
+  <button id="orbitBtn">자동 회전 on/off</button>
+  <button id="fitBtn">전체 보기</button>
+  <button id="zoomBtn">근접(지터 최악 조건)</button>
+</div>
+
+<script type="module">
+import { Viewer, GLTFLoaderPlugin, DirLight, AmbientLight } from "./vendor/xeokit-sdk.min.es.js";
+
+const statusEl = document.getElementById("status");
+const aabbEl = document.getElementById("aabb");
+const fpsEl = document.getElementById("fps");
+
+window.__poc = { loaded: false, error: null, aabb: null, fpsSamples: [] };
+
+const viewer = new Viewer({
+  canvasId: "canvas",
+  transparent: false,
+  dtxEnabled: true,      // 데이터텍스처 모드 (가벼움)
+});
+viewer.scene.camera.perspective.far = 200000;  // 실좌표 스케일에 맞춘 far plane
+viewer.scene.camera.perspective.near = 1.0;
+
+// 조명 (오쏘 드래이핑이 실사감 있게 보이도록 — 근접 LOD 가정)
+viewer.scene.clearLights();
+new AmbientLight(viewer.scene, { color: [1, 1, 1], intensity: 0.8 });
+new DirLight(viewer.scene, { dir: [0.4, -0.9, -0.3], color: [1, 1, 1], intensity: 1.0, space: "world" });
+new DirLight(viewer.scene, { dir: [-0.5, -0.7, 0.5], color: [1, 1, 1], intensity: 0.6, space: "world" });
+viewer.scene.gammaOutput = true;
+
+const gltfLoader = new GLTFLoaderPlugin(viewer);
+
+const model = gltfLoader.load({
+  id: "terrain",
+  src: "./out/ground.glb",
+  edges: false,
+});
+
+model.on("loaded", () => {
+  const aabb = viewer.scene.aabb; // [minx,miny,minz,maxx,maxy,maxz] 실좌표
+  window.__poc.aabb = aabb;
+  const f = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  aabbEl.textContent =
+    `X ${f(aabb[0])}..${f(aabb[3])}  Y ${f(aabb[1])}..${f(aabb[4])}  Z ${f(aabb[2])}..${f(aabb[5])}`;
+  statusEl.textContent = "로드 완료 · 렌더 중";
+  window.__poc.loaded = true;
+  frameOblique(aabb);
+});
+
+// 지형이 잘 보이는 비스듬한 상공 시점
+function frameOblique(aabb) {
+  const cx = (aabb[0]+aabb[3])/2, cy=(aabb[1]+aabb[4])/2, cz=(aabb[2]+aabb[5])/2;
+  const span = Math.max(aabb[3]-aabb[0], aabb[5]-aabb[2]);
+  viewer.scene.camera.eye = [cx, cy + span*0.8, cz + span*0.9];
+  viewer.scene.camera.look = [cx, cy, cz];
+  viewer.scene.camera.up = [0, 1, 0];
+}
+window.__pocFrame = () => frameOblique(viewer.scene.aabb);
+
+model.on("error", (e) => {
+  statusEl.textContent = "에러: " + e;
+  window.__poc.error = String(e);
+});
+
+// --- FPS 측정 (rAF 기반) ---
+let last = performance.now(), frames = 0, acc = 0;
+function tick(now) {
+  const dt = now - last; last = now; acc += dt; frames++;
+  if (acc >= 500) {
+    const fps = (frames * 1000) / acc;
+    fpsEl.textContent = fps.toFixed(0);
+    fpsEl.classList.toggle("bad", fps < 45);
+    if (window.__poc.loaded) window.__poc.fpsSamples.push(fps);
+    frames = 0; acc = 0;
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// --- 자동 회전 (지터 관찰용) ---
+let orbiting = false;
+function orbitLoop() {
+  if (orbiting) viewer.scene.camera.orbitYaw(0.4);
+  requestAnimationFrame(orbitLoop);
+}
+orbitLoop();
+
+document.getElementById("orbitBtn").onclick = () => { orbiting = !orbiting; };
+document.getElementById("fitBtn").onclick = () => viewer.cameraFlight.flyTo({ aabb: viewer.scene.aabb });
+document.getElementById("zoomBtn").onclick = () => {
+  const a = viewer.scene.aabb;
+  const cx = (a[0]+a[3])/2, cy=(a[1]+a[4])/2, cz=(a[2]+a[5])/2;
+  viewer.scene.camera.eye = [cx+30, cy+30, cz+30];
+  viewer.scene.camera.look = [cx, cy, cz];
+};
+
+// Playwright 훅: 자동 회전 시작 API
+window.__pocStartOrbit = () => { orbiting = true; };
+</script>
+</body>
+</html>

@@ -1,10 +1,18 @@
 {
-  "type": "Feature",
-  "crs": {
-    "type": "name",
-    "properties": {
-      "name": "PROJCS[\"KOREA_GRS80_127TM\",GEOGCS[\"GCS_GRS_1980\",DATUM[\"D_GRS_1980\",SPHEROID[\"GRS1980\",6378137.0,298.257222101]],PRIMEM[\"Greenwich\",0.0],UNIT[\"Degree\",0.0174532925199433]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"false_easting\",200000.0],PARAMETER[\"false_northing\",600000.0],PARAMETER[\"central_meridian\",127.0],PARAMETER[\"scale_factor\",1.0],PARAMETER[\"latitude_of_origin\",38.0],UNIT[\"Meter\",1.0]]"
-    }
-  },
-  "coordinates": [0, 0, 0]
+	"type": "Feature",
+	"geometry": {
+		"type": "Point",
+		"bbox": [ 0, 0, 0, 0, 0, 0 ],
+		"coordinates": [ 0, 0, 0 ]
+	},
+	"crs": {
+		"type": "name",
+		"properties": {
+			"name": "PROJCS[\"KOREA_GRS80_127TM\",GEOGCS[\"Korean2000.LL\",DATUM[\"Korean2000\",SPHEROID[\"GRS1980\",6378137.000,298.25722210],TOWGS84[0.0000,0.0000,0.0000,0.000000,0.000000,0.000000,0.00000000]],PRIMEM[\"Greenwich\",0],UNIT[\"Degree\",0.017453292519943295]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"false_easting\",200000.0000],PARAMETER[\"false_northing\",600000.0000],PARAMETER[\"scale_factor\",1.000000000000],PARAMETER[\"central_meridian\",127.00000000000000],PARAMETER[\"latitude_of_origin\",38.00000000000000],UNIT[\"Meter\",1.00000000000000]]"
+		}
+	},
+	"properties": {
+		"rotation": [ 0, 0, 0 ],
+		"scaling": [ 1, 1, 1 ]
+	}
 }

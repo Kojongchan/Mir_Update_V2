@@ -18,7 +18,15 @@ ingest/**/out/
 ingest/**/tmp/
 *.tmp
 
+# PoC 파생 산출물 (poc/build.sh 로 재생성 — data/ 원본에서 변환)
+poc/out/
+poc/vendor/
+poc/node_modules/
+
 # OS / 에디터
 .DS_Store
 .idea/
 .vscode/
+
+# FBX2glTF 가 추출하는 텍스처 폴더 (변환 부산물)
+data/*.fbm/
