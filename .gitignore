@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Node / 프론트
+node_modules/
+dist/
+build/
+.vite/
+*.log
+
+# 변환 파이프라인 임시 산출물 (원본은 /data LFS, 산출물은 스토리지)
+ingest/**/out/
+ingest/**/tmp/
+*.tmp
+
+# OS / 에디터
+.DS_Store
+.idea/
+.vscode/

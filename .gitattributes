@@ -1,0 +1,22 @@
+# 대용량 바이너리 자산은 Git LFS 로 관리 (PROJECT_BRIEF.md §15.2)
+# GitHub 파일 100MB 제한 → 그 이상은 오브젝트 스토리지(S3/Supabase) 사용.
+
+# 지형/모델 원본
+*.fbx    filter=lfs diff=lfs merge=lfs -text
+*.fbm    filter=lfs diff=lfs merge=lfs -text
+*.nwc    filter=lfs diff=lfs merge=lfs -text
+*.nwd    filter=lfs diff=lfs merge=lfs -text
+*.rvt    filter=lfs diff=lfs merge=lfs -text
+*.ifc    filter=lfs diff=lfs merge=lfs -text
+*.dwg    filter=lfs diff=lfs merge=lfs -text
+
+# 변환 산출물
+*.xkt    filter=lfs diff=lfs merge=lfs -text
+*.glb    filter=lfs diff=lfs merge=lfs -text
+*.ktx2   filter=lfs diff=lfs merge=lfs -text
+
+# 래스터/오쏘
+*.tif    filter=lfs diff=lfs merge=lfs -text
+*.tiff   filter=lfs diff=lfs merge=lfs -text
+
+# NOTE: .pos / .gltf(텍스트) 는 LFS 대상 아님 (텍스트로 diff 가능하게 유지).
