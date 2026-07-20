@@ -29,10 +29,17 @@ model.on("loaded", ()=>{
   const a = viewer.scene.aabb;
   const cx=(a[0]+a[3])/2, cy=(a[1]+a[4])/2, cz=(a[2]+a[5])/2;
   const span=Math.max(a[3]-a[0],a[5]-a[2]);
-  // 탑다운
-  viewer.scene.camera.eye=[cx, cy+span*1.2, cz+0.001];
-  viewer.scene.camera.look=[cx,cy,cz];
-  viewer.scene.camera.up=[0,0,-1];
+  const num=(k,d)=>{const v=parseFloat(q.get(k)); return isNaN(v)?d:v;};
+  if (q.has("ex")||q.has("ey")||q.has("ez")) {
+    // 모델 중심 기준 상대 오프셋 (three.js 페이지와 동일 프레이밍)
+    viewer.scene.camera.eye=[cx+num("ex",0)*span, cy+num("ey",0)*span, cz+num("ez",0)*span];
+    viewer.scene.camera.look=[cx+num("lx",0)*span, cy+num("ly",0)*span, cz+num("lz",0)*span];
+    viewer.scene.camera.up=[0,1,0];
+  } else {
+    viewer.scene.camera.eye=[cx, cy+span*1.2, cz+0.001];
+    viewer.scene.camera.look=[cx,cy,cz];
+    viewer.scene.camera.up=[0,0,-1];
+  }
   if (mode==="color"){
     let i=0;
     for (const id in viewer.scene.objects){
