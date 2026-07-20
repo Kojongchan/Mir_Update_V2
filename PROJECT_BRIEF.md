@@ -211,8 +211,13 @@ coordinates = [0, 0, 0]   // ← 오프셋 비어 있음 (주의)
 - 레포 루트 `CLAUDE.md`에 코딩 규칙·금지 디렉토리·테스트 방식 정의(웹/CLI 공통 로딩).
 ### 15.2 대용량 파일 처리 (중요)
 - FBX/오쏘/변환 산출물은 **채팅 업로드 불가**(채팅은 스크린샷·PDF·다이어그램만). GitHub 레포로 관리.
-- GitHub 파일 100MB 제한 → **Git LFS** 또는 별도 오브젝트 스토리지(S3/Supabase 등). 대형 오쏘·XKT는 LFS/스토리지에.
-- PoC용 `ground_수정.fbx`(14MB)는 Git LFS로 커밋 가능. "몇십배" 케이스는 스토리지 버킷.
+- GitHub 파일 100MB 제한(웹 드래그 25MB) → **Git LFS**(소형) 또는 오브젝트 스토리지(대형).
+- **확정: 오브젝트 스토리지 = Supabase Storage** (MIR_SMART v1 이 이미 사용 → 재사용).
+  원본(GB rvt/dwg/ifc/fbx)은 `raw` 버킷, 변환 산출물(XKT/glTF)은 `derived` 버킷.
+  뷰어는 GB 원본을 절대 안 받고 작은 XKT/glTF 만 로드(서명 URL). 구현: `/ingest/storage` + `/ingest/pipeline.py`.
+  Phase 3 GUID↔DB 연동도 같은 Supabase Postgres 로 이어짐.
+  service_role 키는 서버 전용 비밀(커밋/브라우저 노출 금지) — 환경변수 주입.
+- PoC용 `ground_수정.fbx`(14MB)는 Git LFS로 커밋 가능. "몇십배" 케이스는 Supabase 버킷.
 ### 15.3 네트워크
 - 클라우드 세션 기본 네트워크는 Trusted(패키지 레지스트리 등 허용). npm(xeokit/three/cesium 등) 설치 OK.
 - 특정 호스트(변환 도구 다운로드, VWorld/Cesium 타일, Supabase 등) 필요 시 환경의 Allowed domains에 추가.

@@ -35,3 +35,7 @@ data/*.fbm/
 poc/_three.html
 poc/out/*.xkt
 poc/_xkttest.html
+
+# 비밀 (Supabase 키 등)
+.env
+ingest/.env
