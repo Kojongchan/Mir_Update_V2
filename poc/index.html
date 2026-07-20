@@ -34,7 +34,6 @@
   <div class="row">FPS <span id="fps">—</span> <span style="font-size:11px;color:#9fb0d8">(실 GPU에서 측정)</span></div>
   <div class="row">상태: <span id="status">로딩 중…</span></div>
   <div class="row">엔진: xeokit (dtxEnabled) · glTF</div>
-  <div class="row">텍스처 모드: <b id="texmode">—</b> <span style="font-size:11px;color:#9fb0d8">(?tex=orig / ?tex=clamp)</span></div>
   <div class="row">월드 AABB(실좌표):</div>
   <div class="row"><code id="aabb">—</code></div>
   <div class="row">정점을 실 TM 좌표(≈22만/45만)에 배치. re-center 없음.</div>
@@ -46,17 +45,12 @@
   <button id="orbitBtn">자동 회전 on/off</button>
   <button id="fitBtn">전체 보기</button>
   <button id="zoomBtn">근접(지터 최악 조건)</button>
-  <button id="texBtn">텍스처: 개선⇄원본 비교</button>
 </div>
 
 <script type="module">
 import { Viewer, GLTFLoaderPlugin, DirLight, AmbientLight } from "./vendor/xeokit-sdk.min.es.js";
 
 const statusEl = document.getElementById("status");
-{
-  const t0 = new URLSearchParams(location.search).get("tex") || "fixed";
-  document.getElementById("texmode").textContent = t0 === "clamp" ? "fixed" : t0;
-}
 const aabbEl = document.getElementById("aabb");
 const fpsEl = document.getElementById("fps");
 
@@ -79,12 +73,9 @@ viewer.scene.gammaOutput = true;
 
 const gltfLoader = new GLTFLoaderPlugin(viewer);
 
-// 오쏘 비교용: ?tex=orig(변환 그대로 — V-flip 안 됨, 오쏘 어긋남/교량 누락)
-//            ?tex=fixed(V-flip + CLAMP 수정본, 기본값 — Navisworks 일치)
-const q0 = new URLSearchParams(location.search).get("tex") || "fixed";
-const texMode = q0 === "clamp" ? "fixed" : q0;  // 구 링크 호환
+// 수정본(V-flip + CLAMP) — Navisworks 일치. (?tex=orig 로 버그 버전 디버그 가능)
 const srcMap = { orig: "./out/ground.glb", fixed: "./out/ground_clamp.glb" };
-const src = srcMap[texMode] || srcMap.fixed;
+const src = srcMap[new URLSearchParams(location.search).get("tex")] || srcMap.fixed;
 
 const model = gltfLoader.load({
   id: "terrain",
@@ -148,15 +139,6 @@ document.getElementById("zoomBtn").onclick = () => {
   const cx = (a[0]+a[3])/2, cy=(a[1]+a[4])/2, cz=(a[2]+a[5])/2;
   viewer.scene.camera.eye = [cx+30, cy+30, cz+30];
   viewer.scene.camera.look = [cx, cy, cz];
-};
-
-// 텍스처 개선(clamp) ⇄ 원본(orig) 토글 — 클릭하면 반대 버전으로 새로고침
-document.getElementById("texBtn").onclick = () => {
-  const cur = (new URLSearchParams(location.search).get("tex") || "fixed");
-  const next = (cur === "orig") ? "fixed" : "orig";
-  const p = new URLSearchParams(location.search);
-  p.set("tex", next);
-  location.search = "?" + p.toString();
 };
 
 // Playwright 훅: 자동 회전 시작 API
