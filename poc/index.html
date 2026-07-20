@@ -46,6 +46,7 @@
   <button id="orbitBtn">자동 회전 on/off</button>
   <button id="fitBtn">전체 보기</button>
   <button id="zoomBtn">근접(지터 최악 조건)</button>
+  <button id="texBtn">텍스처: 개선⇄원본 비교</button>
 </div>
 
 <script type="module">
@@ -143,6 +144,15 @@ document.getElementById("zoomBtn").onclick = () => {
   const cx = (a[0]+a[3])/2, cy=(a[1]+a[4])/2, cz=(a[2]+a[5])/2;
   viewer.scene.camera.eye = [cx+30, cy+30, cz+30];
   viewer.scene.camera.look = [cx, cy, cz];
+};
+
+// 텍스처 개선(clamp) ⇄ 원본(orig) 토글 — 클릭하면 반대 버전으로 새로고침
+document.getElementById("texBtn").onclick = () => {
+  const cur = new URLSearchParams(location.search).get("tex") || "clamp";
+  const next = cur === "clamp" ? "orig" : "clamp";
+  const p = new URLSearchParams(location.search);
+  p.set("tex", next);
+  location.search = "?" + p.toString();
 };
 
 // Playwright 훅: 자동 회전 시작 API
