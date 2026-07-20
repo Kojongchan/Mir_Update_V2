@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"/>
+<title>ortho debug</title>
+<link rel="icon" href="data:,"/>
+<style>html,body{margin:0;height:100%}#canvas{width:100vw;height:100vh;background:#111}</style>
+</head><body>
+<canvas id="canvas"></canvas>
+<script type="module">
+import { Viewer, GLTFLoaderPlugin, AmbientLight, DirLight } from "./vendor/xeokit-sdk.min.es.js";
+const q = new URLSearchParams(location.search);
+const src = q.get("src") || "./out/ground.glb";
+const mode = q.get("mode") || "tex";     // tex | color
+const dtx = q.get("dtx") !== "0";        // dtx=0 이면 VBO 모드
+window.__d = { loaded:false };
+
+const viewer = new Viewer({ canvasId:"canvas", dtxEnabled:dtx, transparent:false });
+viewer.scene.camera.perspective.far = 300000;
+viewer.scene.camera.perspective.near = 1.0;
+viewer.scene.clearLights();
+new AmbientLight(viewer.scene,{color:[1,1,1],intensity:0.9});
+new DirLight(viewer.scene,{dir:[0.2,-1,0.2],color:[1,1,1],intensity:1.2,space:"world"});
+viewer.scene.gammaOutput = true;
+
+const loader = new GLTFLoaderPlugin(viewer);
+const model = loader.load({ id:"m", src, edges: mode==="color" });
+const palette = [[1,0.3,0.3],[0.3,1,0.3],[0.4,0.6,1],[1,1,0.3]];
+
+model.on("loaded", ()=>{
+  const a = viewer.scene.aabb;
+  const cx=(a[0]+a[3])/2, cy=(a[1]+a[4])/2, cz=(a[2]+a[5])/2;
+  const span=Math.max(a[3]-a[0],a[5]-a[2]);
+  // 탑다운
+  viewer.scene.camera.eye=[cx, cy+span*1.2, cz+0.001];
+  viewer.scene.camera.look=[cx,cy,cz];
+  viewer.scene.camera.up=[0,0,-1];
+  if (mode==="color"){
+    let i=0;
+    for (const id in viewer.scene.objects){
+      const o=viewer.scene.objects[id];
+      o.colorize = palette[i%palette.length]; i++;
+    }
+    window.__d.meshCount=i;
+  }
+  window.__d.loaded=true;
+});
+model.on("error",e=>{ window.__d.error=String(e); });
+</script></body></html>

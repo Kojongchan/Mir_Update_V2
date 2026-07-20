@@ -34,6 +34,7 @@
   <div class="row">FPS <span id="fps">—</span> <span style="font-size:11px;color:#9fb0d8">(실 GPU에서 측정)</span></div>
   <div class="row">상태: <span id="status">로딩 중…</span></div>
   <div class="row">엔진: xeokit (dtxEnabled) · glTF</div>
+  <div class="row">텍스처 모드: <b id="texmode">—</b> <span style="font-size:11px;color:#9fb0d8">(?tex=orig / ?tex=clamp)</span></div>
   <div class="row">월드 AABB(실좌표):</div>
   <div class="row"><code id="aabb">—</code></div>
   <div class="row">정점을 실 TM 좌표(≈22만/45만)에 배치. re-center 없음.</div>
@@ -51,6 +52,8 @@
 import { Viewer, GLTFLoaderPlugin, DirLight, AmbientLight } from "./vendor/xeokit-sdk.min.es.js";
 
 const statusEl = document.getElementById("status");
+document.getElementById("texmode").textContent =
+  (new URLSearchParams(location.search).get("tex") || "clamp");
 const aabbEl = document.getElementById("aabb");
 const fpsEl = document.getElementById("fps");
 
@@ -73,9 +76,14 @@ viewer.scene.gammaOutput = true;
 
 const gltfLoader = new GLTFLoaderPlugin(viewer);
 
+// 오쏘 텍스처 샘플러 비교용: ?tex=orig(REPEAT 기본) / ?tex=clamp(CLAMP+밉맵, 기본값)
+const texMode = new URLSearchParams(location.search).get("tex") || "clamp";
+const srcMap = { orig: "./out/ground.glb", clamp: "./out/ground_clamp.glb" };
+const src = srcMap[texMode] || srcMap.clamp;
+
 const model = gltfLoader.load({
   id: "terrain",
-  src: "./out/ground.glb",
+  src,
   edges: false,
 });
 
