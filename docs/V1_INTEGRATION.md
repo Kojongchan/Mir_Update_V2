@@ -13,7 +13,7 @@
 | 60만대 실좌표 지형 60fps·지터 없음 (R1) | ✅ | xeokit 더블프리시전, re-center 없음 |
 | 오쏘 드래이핑 (InfraWorks V-flip 버그 수정) | ✅ | `poc/fix_gltf_uv.py`, Navisworks 일치 |
 | 구조물 실좌표 자동 정합 (한 씬, R2) | ✅ | `poc/phase1.html` (SceneModel origin) |
-| IFC → XKT 변환 | ✅ | `ingest/ifc2xkt` (convert2xkt) |
+| **IFC → XKT → 뷰어 (end-to-end)** | ✅ | 실제 IFC(413KB)→XKT(367KB)→렌더 60fps |
 | DWG → 선형 (ODA 없이) | ✅ | `ingest/dwg2gltf` (LibreDWG WASM), 경사갱 |
 | 대용량 업로드 (Supabase) | ✅ 스캐폴딩 | `ingest/storage`, 키 대기 |
 | ACC/APS → glTF (Autodesk 뷰어 교체) | ✅ 스캐폴딩 | `integration/aps` (svf-utils), 크리덴셜 대기 |
@@ -105,14 +105,22 @@ ACC 파일 ──(서버 변환)──► glTF/XKT ──► iframe 뷰어 로�
 ```
 "우리 뷰어로 열린다" = **변환 결과가 뷰어에 뜬다**. 변환은 서버(v1 백엔드 or 우리 인제스트).
 
-### 3-1. 두 가지 경로 (ACC 파일 포맷에 따라)
-| ACC 파일 | 경로 | 상태 |
-|---|---|---|
-| **IFC / DWG / FBX** | v1 이 원본 **다운로드**(APS Data Management — v1 이미 가능) → **우리 인제스트**(IFC→XKT / DWG→선형) → 뷰어 | ✅ 검증됨, APS 번역 불필요 |
-| **RVT / NWD** | **APS SVF→glTF**(`integration/aps`, svf-utils — 오토데스크 변환 재사용) → 뷰어 | 스캐폴딩(크리덴셜 필요) |
+### 3-1. 권장: v1 에선 **APS SVF→glTF 통합 경로** (IFC/RVT/NWD/DWG 다 있음)
+ACC 에 IFC·RVT·NWD·DWG 가 모두 있으면 → **APS SVF→glTF 하나로 전부** 여는 게 최선.
+- v1 이 **APS 이미 연결** + ACC 모든 파일은 **이미 SVF2 파생 보유**(Autodesk 뷰어가 그걸 씀).
+- **한 경로(svf-utils)로 4포맷 전부** + **DWG 3D솔리드까지**(오토데스크가 ACIS 테셀레이션 —
+  우리 LibreDWG 가 선형만 됐던 한계 해결). 4포맷 × 4변환기 유지 불필요.
+- glTF 는 필요시 `convert2xkt` 로 XKT 화(경량). 속성(dbId→GUID)도 SVF 에서 나옴.
+- 코드: `integration/aps` · 필요: `APS_CLIENT_ID/SECRET`(v1 앱 것) · 좌표(R4) 검증.
 
-→ **ACC 모델이 IFC 면 제일 간단**: v1 이 IFC 를 다운로드만 하면(이미 됨) → `ingest/pipeline`
-   이 XKT 로 변환 → 뷰어가 연다. APS Model Derivative/SVF 안 거쳐도 됨.
+| ACC 파일 | 권장 경로 | 보조 경로 |
+|---|---|---|
+| RVT / NWD | **APS SVF→glTF** (유일) | — |
+| DWG (솔리드 포함) | **APS SVF→glTF** (솔리드 면까지) | 우리 LibreDWG(선형만) |
+| IFC | APS SVF→glTF | 우리 IFC→XKT(경량, 비ACC용) |
+
+> **직접 변환기(IFC→XKT, DWG→선형)는 폐기 아님** — 비ACC 파일(로컬 업로드)·경량 XKT·
+> APS 없는 경우의 대안으로 유지. 하지만 **ACC 파일 열기의 주력은 APS 통합 경로.**
 
 ### 3-2. 흐름 (경로 A: IFC/DWG)
 ```
