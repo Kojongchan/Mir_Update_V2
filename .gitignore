@@ -33,3 +33,5 @@ data/*.fbm/
 
 # 로컬 전용 three.js 격리 진단 도구 (vendor/three 의존 — 배포 안 함)
 poc/_three.html
+poc/out/*.xkt
+poc/_xkttest.html

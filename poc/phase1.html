@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Phase 1 — 구조물 정합 (실좌표 한 씬 · R2)</title>
+<link rel="icon" href="data:," />
+<style>
+  html, body { margin:0; height:100%; overflow:hidden; font-family: system-ui, sans-serif; }
+  #canvas { width:100vw; height:100vh; display:block; background:#0b1020; }
+  #hud { position:fixed; top:12px; left:12px; z-index:10; background:rgba(10,16,32,.82);
+    color:#dfe7ff; padding:12px 14px; border-radius:10px; font-size:13px; line-height:1.5; max-width:420px; }
+  #hud b { color:#8fb8ff; }
+  #fps { font-size:20px; font-weight:700; color:#7CFF9B; }
+  #fps.bad { color:#ff7c7c; }
+  .row { margin:2px 0; }
+  code { color:#ffd479; }
+  #pick { color:#ffd479; font-weight:700; }
+  #controls { position:fixed; bottom:12px; left:12px; z-index:10; }
+  button { background:#2a3a66; color:#dfe7ff; border:1px solid #3f5aa6; padding:8px 12px;
+    border-radius:8px; font-size:13px; cursor:pointer; margin-right:6px; }
+  button:hover { background:#35488a; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="hud">
+  <div class="row"><b>Phase 1 · 구조물 정합 (R2)</b></div>
+  <div class="row">FPS <span id="fps">—</span> <span style="font-size:11px;color:#9fb0d8">(실 GPU)</span></div>
+  <div class="row">상태: <span id="status">로딩 중…</span></div>
+  <div class="row">지형(glTF) + 구조물(SceneModel) <b>한 씬 · 실좌표 · re-center 없음</b></div>
+  <div class="row">구조물을 실좌표(≈22.5만/45.1만, 표고 160~203m)에 배치.</div>
+  <div class="row">구조물이 지형 위 정확한 위치에 <b>자동 정합</b>되는지 · 지터 없는지 확인.</div>
+  <div class="row">클릭한 오브젝트: <span id="pick">—</span> <span style="font-size:11px;color:#9fb0d8">(MIR_SMART GUID↔DB 훅)</span></div>
+</div>
+<div id="controls">
+  <button id="orbitBtn">자동 회전 on/off</button>
+  <button id="allBtn">전체 보기</button>
+  <button id="structBtn">구조물로 이동</button>
+</div>
+
+<script type="module">
+import { Viewer, GLTFLoaderPlugin, SceneModel, buildBoxGeometry,
+         AmbientLight, DirLight } from "./vendor/xeokit-sdk.min.es.js";
+
+const statusEl = document.getElementById("status");
+const fpsEl = document.getElementById("fps");
+const pickEl = document.getElementById("pick");
+window.__p1 = { terrain:false, structures:false };
+
+const viewer = new Viewer({ canvasId:"canvas", dtxEnabled:true, transparent:false });
+viewer.scene.camera.perspective.far = 200000;
+viewer.scene.camera.perspective.near = 1.0;
+viewer.scene.clearLights();
+new AmbientLight(viewer.scene, { color:[1,1,1], intensity:0.8 });
+new DirLight(viewer.scene, { dir:[0.4,-0.9,-0.3], color:[1,1,1], intensity:1.0, space:"world" });
+new DirLight(viewer.scene, { dir:[-0.5,-0.7,0.5], color:[1,1,1], intensity:0.5, space:"world" });
+viewer.scene.gammaOutput = true;
+
+// --- 1) 지형 (수정본 glTF, 실좌표) ---
+const gltf = new GLTFLoaderPlugin(viewer);
+const terrain = gltf.load({ id:"terrain", src:"./out/ground_clamp.glb", edges:false });
+
+// --- 2) 구조물 (SceneModel, 실좌표 · 더블프리시전 origin) ---
+// 실제로는 IFC→XKT 로 로드(ingest/ifc2xkt). 여기선 R2 메커니즘 검증용 합성 구조물.
+// 좌표계: xeokit world Y-up → X=easting, Y=표고, Z=-northing.
+// 각 구조물 base 를 지형 표고에 맞춰 배치(사전 계산값).
+const buildings = [
+  { id:"BLDG-A01", E:225000, N:451100, base:159, w:35, d:22, h:18, color:[0.85,0.85,0.9] },
+  { id:"BLDG-A02", E:225200, N:451000, base:160, w:28, d:20, h:15, color:[0.8,0.82,0.88] },
+  { id:"BLDG-A03", E:225400, N:450950, base:187, w:40, d:24, h:20, color:[0.82,0.8,0.86] },
+  { id:"BLDG-A04", E:225100, N:450800, base:203, w:30, d:18, h:16, color:[0.86,0.84,0.82] },
+  { id:"TOWER-01",  E:225300, N:451200, base:163, w:12, d:12, h:70, color:[1.0,0.55,0.2] }, // 정합 확인용 고탑
+];
+
+const sm = new SceneModel(viewer.scene, { id:"structures", isModel:true });
+const box = buildBoxGeometry({ xSize:0.5, ySize:0.5, zSize:0.5 }); // 단위 큐브(중심원점)
+sm.createGeometry({ id:"box", primitive:"triangles",
+  positions:box.positions, indices:box.indices, normals:box.normals });
+for (const b of buildings) {
+  const origin = [b.E, b.base, -b.N];      // 실좌표 RTC 중심 (더블프리시전)
+  sm.createMesh({ id:b.id+"-m", geometryId:"box",
+    origin, position:[0, b.h/2, 0], scale:[b.w, b.h, b.d], color:b.color });
+  sm.createEntity({ id:b.id, meshIds:[b.id+"-m"], isObject:true });
+}
+sm.finalize();
+window.__p1.structures = true;
+
+terrain.on("loaded", () => {
+  statusEl.textContent = "로드 완료 · 렌더 중";
+  window.__p1.terrain = true;
+  frameStructures();
+});
+terrain.on("error", e => { statusEl.textContent = "지형 에러: "+e; });
+
+function frameStructures() {
+  // 구조물 클러스터 중심으로 비스듬히
+  const cE=225200, cN=451010, cZ=180;
+  viewer.scene.camera.eye = [cE-250, cZ+220, -cN+300];
+  viewer.scene.camera.look = [cE, cZ, -cN];
+  viewer.scene.camera.up = [0,1,0];
+}
+window.__p1Frame = frameStructures;
+
+// --- 피킹 (MIR_SMART 연동 훅) ---
+viewer.scene.input.on("mouseclicked", (coords) => {
+  const hit = viewer.scene.pick({ canvasPos: coords });
+  if (hit && hit.entity && hit.entity.isObject) {
+    pickEl.textContent = hit.entity.id;
+    window.__p1.lastPick = hit.entity.id;
+  } else {
+    pickEl.textContent = "(지형/빈 곳)";
+  }
+});
+
+// --- FPS ---
+let last=performance.now(), frames=0, acc=0;
+function tick(now){ const dt=now-last; last=now; acc+=dt; frames++;
+  if (acc>=500){ const fps=frames*1000/acc; fpsEl.textContent=fps.toFixed(0);
+    fpsEl.classList.toggle("bad", fps<45); frames=0; acc=0; }
+  requestAnimationFrame(tick); }
+requestAnimationFrame(tick);
+
+// --- 자동 회전 ---
+let orbiting=false;
+(function orbit(){ if(orbiting) viewer.scene.camera.orbitYaw(0.4); requestAnimationFrame(orbit); })();
+document.getElementById("orbitBtn").onclick = ()=>{ orbiting=!orbiting; };
+document.getElementById("allBtn").onclick = ()=> viewer.cameraFlight.flyTo({ aabb: viewer.scene.aabb });
+document.getElementById("structBtn").onclick = frameStructures;
+window.__p1StartOrbit = ()=>{ orbiting=true; };
+</script>
+</body>
+</html>
