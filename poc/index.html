@@ -53,8 +53,10 @@
 import { Viewer, GLTFLoaderPlugin, DirLight, AmbientLight } from "./vendor/xeokit-sdk.min.es.js";
 
 const statusEl = document.getElementById("status");
-document.getElementById("texmode").textContent =
-  (new URLSearchParams(location.search).get("tex") || "clamp");
+{
+  const t0 = new URLSearchParams(location.search).get("tex") || "fixed";
+  document.getElementById("texmode").textContent = t0 === "clamp" ? "fixed" : t0;
+}
 const aabbEl = document.getElementById("aabb");
 const fpsEl = document.getElementById("fps");
 
@@ -77,10 +79,12 @@ viewer.scene.gammaOutput = true;
 
 const gltfLoader = new GLTFLoaderPlugin(viewer);
 
-// 오쏘 텍스처 샘플러 비교용: ?tex=orig(REPEAT 기본) / ?tex=clamp(CLAMP+밉맵, 기본값)
-const texMode = new URLSearchParams(location.search).get("tex") || "clamp";
-const srcMap = { orig: "./out/ground.glb", clamp: "./out/ground_clamp.glb" };
-const src = srcMap[texMode] || srcMap.clamp;
+// 오쏘 비교용: ?tex=orig(변환 그대로 — V-flip 안 됨, 오쏘 어긋남/교량 누락)
+//            ?tex=fixed(V-flip + CLAMP 수정본, 기본값 — Navisworks 일치)
+const q0 = new URLSearchParams(location.search).get("tex") || "fixed";
+const texMode = q0 === "clamp" ? "fixed" : q0;  // 구 링크 호환
+const srcMap = { orig: "./out/ground.glb", fixed: "./out/ground_clamp.glb" };
+const src = srcMap[texMode] || srcMap.fixed;
 
 const model = gltfLoader.load({
   id: "terrain",
@@ -148,8 +152,8 @@ document.getElementById("zoomBtn").onclick = () => {
 
 // 텍스처 개선(clamp) ⇄ 원본(orig) 토글 — 클릭하면 반대 버전으로 새로고침
 document.getElementById("texBtn").onclick = () => {
-  const cur = new URLSearchParams(location.search).get("tex") || "clamp";
-  const next = cur === "clamp" ? "orig" : "clamp";
+  const cur = (new URLSearchParams(location.search).get("tex") || "fixed");
+  const next = (cur === "orig") ? "fixed" : "orig";
   const p = new URLSearchParams(location.search);
   p.set("tex", next);
   location.search = "?" + p.toString();

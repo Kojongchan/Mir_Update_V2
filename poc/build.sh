@@ -13,12 +13,17 @@ mkdir -p poc/out poc/vendor
 echo "[1/3] npm 의존성 (fbx2gltf, xeokit-sdk) 설치…"
 npm install --no-save fbx2gltf @xeokit/xeokit-sdk >/dev/null
 
-echo "[2/3] FBX → glb 변환…"
+echo "[2/4] FBX → glb 변환…"
 BIN="node_modules/fbx2gltf/bin/Linux/FBX2glTF"   # macOS 는 Darwin/, Windows 는 Windows_NT/
 chmod +x "$BIN" || true
 "$BIN" -i "data/ground_수정.fbx" -o "poc/out/ground" -b --pbr-metallic-roughness
 
-echo "[3/3] xeokit 번들 복사…"
+echo "[3/4] UV V-flip + 샘플러 수정 (오쏘 드래이핑 정확도)…"
+# FBX2glTF/assimp 는 FBX(V=0 아래) → glTF(V=0 위) V-flip 을 안 함 → 오쏘가
+# 엉뚱한 행을 샘플. 이 후처리로 교정. (fix_gltf_uv.py 헤더 참조)
+python3 poc/fix_gltf_uv.py poc/out/ground.glb poc/out/ground_clamp.glb
+
+echo "[4/4] xeokit 번들 복사…"
 cp node_modules/@xeokit/xeokit-sdk/dist/xeokit-sdk.min.es.js poc/vendor/
 
 cat <<'MSG'

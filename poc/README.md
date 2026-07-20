@@ -91,7 +91,27 @@ npx http-server poc -p 8099 -c-1       # 서빙
 2. 타일별 **거터(gutter) 패딩** 추가 후 밉맵, + **KTX2** 압축.
 → 인제스트 파이프라인 `ortho_ktx2/` 에서 구현.
 
+## 오쏘 드래이핑 정확도 — UV V-flip 버그 (2026-07-20, 확정·해결)
+
+**증상:** Navisworks 와 같은 시점으로 비교 시, 오쏘가 실제와 다르게 얹힘 —
+특정 지형지물(교량/고가)이 **누락**되고 타일 경계에서 내용이 밀려 보임.
+
+**결정적 진단 (glTF 렌더러 배제):** `raster.py` 로 FBX 의 정점+UV 를 써서
+오쏘를 **직접 래스터라이즈**(glTF 무관):
+- V-as-is → 우리 glTF 렌더와 동일(교량 없음).
+- **V-flip (v→1-v) → 교량 포함, Navisworks 와 완전 일치.**
+
+**확정 원인:** **UV V축 규약 불일치.** InfraWorks FBX 는 V=0=텍스처 아래
+(OpenGL/FBX), glTF 는 V=0=위. FBX2glTF·assimp **둘 다 V-flip 미적용** →
+glTF 렌더러가 타일의 엉뚱한 행 샘플. (앞서 "회전 차이"라 오판했던 것도 이 때문 —
+V 가 밀려도 지형은 그럴듯해 보였음.)
+
+**해결:** `poc/fix_gltf_uv.py` — 변환 glb 의 모든 TEXCOORD_0 V 뒤집기 +
+샘플러 CLAMP+밉맵off. `build.sh` 3단계에 편입. 뷰어 기본값 `?tex=fixed`.
+`?tex=orig` 는 버그 버전(비교용). 프로덕션은 변환 시점에 V-flip 적용(→ `ingest/fbx2gltf`).
+
 ### 판정
 - 좌표·정합·오쏘·파이프라인은 **통과**. R1 의 정적 요소는 모두 확인됨.
+- 오쏘 드래이핑도 **Navisworks 일치**(V-flip 수정 후).
 - 남은 두 항목(60fps·이동 중 지터)만 실 GPU 육안 확인되면 **R1 최종 통과 → Phase 1(구조물 정합)** 진행.
 - 결과 확정 후 PROJECT_BRIEF.md §11 R1 행에 반영.
