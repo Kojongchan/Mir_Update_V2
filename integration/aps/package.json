@@ -1,0 +1,7 @@
+{
+  "name": "mir-aps-integration",
+  "private": true,
+  "type": "module",
+  "description": "APS(ACC) 모델 → glTF (Autodesk 뷰어를 xeokit 으로 대체)",
+  "dependencies": { "svf-utils": "^8.0.0" }
+}

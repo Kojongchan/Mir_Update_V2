@@ -122,6 +122,19 @@ coordinates = [0, 0, 0]   // ← 오프셋 비어 있음 (주의)
 ### 6.3 XKT / 사전변환이 "가벼움"의 본체
 - IFC→XKT: 예) IFCv4 186MB → 12MB XKT(~95% 압축). 서버에서 굽고 브라우저는 스트리밍만.
 - **런타임 파싱 절대 금지.** 프로젝트 생성 시 백그라운드 배치로 변환 → 사용자는 변환을 못 느낌 → "열어도 렉" 원천 차단.
+### 6.5 파일 소스 = ACC/APS (확정, v1 재사용) — "Autodesk 뷰어만 교체"
+- **핵심:** MIR_SMART v1 은 이미 **APS(Forge) API 로 ACC 파일을 받아 Autodesk 뷰어**로 표시 중.
+  그 뷰어(SVF2 스트리밍)가 **렉의 원인** → 우리는 **뷰어만 xeokit 으로 교체**. APS 접근·인증·자료관리 탭은 v1 그대로.
+- **사용자 흐름:** v1 자료관리 탭에서 파일(ifc/rvt/dwg…) 열기 → 모델 URN → 우리 백엔드 → 우리 뷰어.
+- **geometry 확보:** APS 가 이미 만든 파생(SVF/SVF2)을 **svf-utils(오픈소스)로 glTF 변환**(`/integration/aps`).
+  - rvt·dwg·nwd·ifc **전부** — 오토데스크가 자기 포맷을 변환하므로 **§6.1 폐쇄 포맷 벽을 근본 우회**(ODA/DDC 불필요).
+  - 버리는 건 ACC 의 "뷰어(렉)"이지 "변환"이 아님 — ACC 를 버리는 이유(§2.1)와 정확히 일치.
+- **속성:** SVF 의 dbId→ExternalId/GUID + PropertyDB → MIR_SMART 연동(§8).
+- **캐시:** 변환 glTF/XKT 는 Supabase `derived` 에 버전키로 캐시 → 같은 버전 재열람 즉시.
+- **⚠️ 좌표(R4):** SVF geometry 가 실좌표(공유좌표)로 나오는지 검증 필요 — 지형(EPSG 5186) 자동 정합의 관건.
+  Revit 공유좌표를 실좌표로 설정했으면 그대로 정합, 오프셋 있으면 메타로 뷰어 origin 보정.
+- **인증:** ACC 사용자 데이터는 3-legged 가능 → v1 토큰/플로우 재사용이 최선. 필요: APS Client ID/Secret(env, 비밀).
+
 ### 6.4 대용량 오쏘 분기
 - 오쏘 텍스처 ≤ 수십 MB(현재 케이스): 단일 glTF + KTX2. 3D Tiles 불필요.
 - 오쏘 대형(수백MB~GB): 지형을 **3D Tiles 타일셋**으로 굽기(텍스처 피라미드), 지도 모드에서 Cesium 스트리밍.
