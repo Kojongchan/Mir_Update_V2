@@ -1,0 +1,9 @@
+{
+  "name": "mir-dwg2gltf",
+  "private": true,
+  "type": "module",
+  "description": "DWG 선형 지오메트리 추출 (LibreDWG WASM, ODA 불필요)",
+  "dependencies": {
+    "@mlightcad/libredwg-web": "^0.7.8"
+  }
+}

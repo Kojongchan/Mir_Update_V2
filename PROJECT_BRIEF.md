@@ -107,6 +107,9 @@ coordinates = [0, 0, 0]   // ← 오프셋 비어 있음 (주의)
 ### 6.1 포맷 리딩의 구조적 벽 (인식 필수)
 - **rvt·nwd·dwg는 오토데스크 소유 폐쇄 포맷.** 순수 오픈소스로 풀 피델리티 리딩 불가. ACC가 "다 되는" 이유는 오토데스크가 자기 포맷을 자기가 읽기 때문.
 - 우회로는 항상 **변환 레이어**를 거침. rvt/dwg 오프라인 변환 도구(예: DataDrivenConstruction)는 내부적으로 ODA 상용 리버스엔지니어링 SDK를 감싼 것(소스 비공개 바이너리, ODA 풀라이선스 수만 유로).
+- **DWG 부분 돌파 (PoC 확인):** **LibreDWG(WASM, `@mlightcad/libredwg-web`)로 DWG를 ODA 없이 읽어 LINE/SPLINE/POLYLINE 선형 지오메트리를 실좌표로 추출** 가능(`/ingest/dwg2gltf`). 실제 `경사갱.dwg`(AC2018)에서 12,547 선분을 지형과 자동 정합해 렌더 확인.
+  - **단, 3DSOLID는 ACIS(satCache)** → 서피스 테셀레이션엔 여전히 ODA 필요. 토목 DWG의 선형·등고·단면은 이 경로로 커버, 3D 솔리드 형상은 IFC/FBX export 또는 ODA.
+  - rvt/nwd는 여전히 변환 레이어(ODA/DDC or Revit IFC export) 필요.
 ### 6.2 변환 경로 (전부 서버측 배치, 프로젝트 생성 시)
 | 입력 | 변환 경로 | 뷰어 로딩 포맷 | 비고 |
 |---|---|---|---|

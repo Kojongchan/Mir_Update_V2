@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>DWG 구조물 정합 — 경사갱 (LibreDWG, ODA 불필요)</title>
+<link rel="icon" href="data:,"/>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,sans-serif}
+  #canvas{width:100vw;height:100vh;display:block;background:#0b1020}
+  #hud{position:fixed;top:12px;left:12px;z-index:10;background:rgba(10,16,32,.82);color:#dfe7ff;
+    padding:12px 14px;border-radius:10px;font-size:13px;line-height:1.5;max-width:430px}
+  #hud b{color:#8fb8ff} #fps{font-size:20px;font-weight:700;color:#7CFF9B} #fps.bad{color:#ff7c7c}
+  .row{margin:2px 0} code{color:#ffd479}
+  #controls{position:fixed;bottom:12px;left:12px;z-index:10}
+  button{background:#2a3a66;color:#dfe7ff;border:1px solid #3f5aa6;padding:8px 12px;border-radius:8px;
+    font-size:13px;cursor:pointer;margin-right:6px} button:hover{background:#35488a}
+</style></head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="hud">
+  <div class="row"><b>DWG 구조물 정합 · 경사갱 솔리드</b></div>
+  <div class="row">FPS <span id="fps">—</span> <span style="font-size:11px;color:#9fb0d8">(실 GPU)</span></div>
+  <div class="row">상태: <span id="status">로딩 중…</span></div>
+  <div class="row">지형(glTF) + <b>DWG 선형</b>(SceneModel lines) · 한 씬 · 실좌표</div>
+  <div class="row">DWG를 <b>LibreDWG(WASM)로 ODA 없이</b> 읽어 LINE/SPLINE 추출.</div>
+  <div class="row">3DSOLID 15개는 ACIS → 테셀레이션 ODA 필요(선형만 표시).</div>
+  <div class="row">추출: <code id="stat">—</code></div>
+</div>
+<div id="controls">
+  <button id="orbitBtn">자동 회전 on/off</button>
+  <button id="allBtn">전체 보기</button>
+  <button id="dwgBtn">경사갱으로 이동</button>
+</div>
+
+<script type="module">
+import { Viewer, GLTFLoaderPlugin, SceneModel, AmbientLight, DirLight } from "./vendor/xeokit-sdk.min.es.js";
+const statusEl=document.getElementById("status"), fpsEl=document.getElementById("fps"), statEl=document.getElementById("stat");
+window.__d1={terrain:false,dwg:false};
+
+const viewer=new Viewer({canvasId:"canvas",dtxEnabled:false,transparent:false}); // lines=VBO
+viewer.scene.camera.perspective.far=200000; viewer.scene.camera.perspective.near=1.0;
+viewer.scene.clearLights();
+new AmbientLight(viewer.scene,{color:[1,1,1],intensity:0.85});
+new DirLight(viewer.scene,{dir:[0.4,-0.9,-0.3],color:[1,1,1],intensity:1.0,space:"world"});
+new DirLight(viewer.scene,{dir:[-0.5,-0.7,0.5],color:[1,1,1],intensity:0.5,space:"world"});
+viewer.scene.gammaOutput=true;
+
+// 지형
+const gltf=new GLTFLoaderPlugin(viewer);
+const terrain=gltf.load({id:"terrain",src:"./out/ground_clamp.glb",edges:false});
+
+// DWG 선형 (실좌표 · 더블프리시전 origin)
+let dwgCenter=null;
+const res=await fetch("./out/dwg_lines.json"); const dwg=await res.json();
+dwgCenter=dwg.origin;
+statEl.textContent=`LINE/SPLINE ${dwg.indices.length/2}선분, 3DSOLID ${dwg.entityCounts["3DSOLID"]||0}(ACIS)`;
+const sm=new SceneModel(viewer.scene,{id:"dwg",isModel:true});
+sm.createMesh({id:"dwg-m",primitive:"lines",positions:dwg.positions,indices:dwg.indices,
+  origin:dwg.origin,color:[1.0,0.9,0.2]});
+sm.createEntity({id:"경사갱-DWG",meshIds:["dwg-m"],isObject:true});
+sm.finalize();
+window.__d1.dwg=true;
+
+terrain.on("loaded",()=>{ statusEl.textContent="로드 완료 · 렌더 중"; window.__d1.terrain=true; frameDwg(); });
+terrain.on("error",e=>{ statusEl.textContent="지형 에러: "+e; });
+
+function frameDwg(){
+  const [ox,oy,oz]=dwgCenter; // xeokit world (E, elev, -N)
+  viewer.scene.camera.eye=[ox-90, oy+70, oz+90];
+  viewer.scene.camera.look=[ox,oy,oz];
+  viewer.scene.camera.up=[0,1,0];
+}
+window.__d1Frame=frameDwg;
+
+let last=performance.now(),frames=0,acc=0;
+(function tick(now){const dt=now-last;last=now;acc+=dt;frames++;
+  if(acc>=500){const f=frames*1000/acc;fpsEl.textContent=f.toFixed(0);fpsEl.classList.toggle("bad",f<45);frames=0;acc=0;}
+  requestAnimationFrame(tick);})(performance.now());
+let orbiting=false;
+(function orbit(){if(orbiting)viewer.scene.camera.orbitYaw(0.4);requestAnimationFrame(orbit);})();
+document.getElementById("orbitBtn").onclick=()=>{orbiting=!orbiting;};
+document.getElementById("allBtn").onclick=()=>viewer.cameraFlight.flyTo({aabb:viewer.scene.aabb});
+document.getElementById("dwgBtn").onclick=frameDwg;
+window.__d1StartOrbit=()=>{orbiting=true;};
+</script></body></html>

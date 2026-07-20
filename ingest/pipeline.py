@@ -80,10 +80,20 @@ def process(project: str, raw_path: str) -> dict:
         st.upload(DERIVED_BUCKET, dst, cj)
         entry.update(kind="crs", asset=dst, epsg=r.epsg, zone=r.zone_name)
 
-    elif ext in (".rvt", ".dwg", ".nwd"):
+    elif ext == ".dwg":
+        # DWG 선형(LINE/SPLINE/POLYLINE) → LibreDWG WASM(ODA 불필요)로 추출.
+        # 3DSOLID(ACIS)는 테셀레이션에 ODA 필요 → 선형만.
+        lines = os.path.join(tmp, name + ".lines.json")
+        _run(["node", os.path.join(ROOT, "ingest/dwg2gltf/extract_dwg.mjs"), local, lines])
+        dst = f"{project}/{name}.lines.json"
+        st.upload(DERIVED_BUCKET, dst, lines)
+        entry.update(kind="structure_lines", asset=dst, loader="scenemodel-lines",
+                     note="선형만 (3DSOLID ACIS 는 ODA 필요)")
+
+    elif ext in (".rvt", ".nwd"):
         # 폐쇄 포맷 — ODA/DDC 또는 사내 Revit 변환 레이어 필요(§6.1). 이 환경 실행 불가.
         entry.update(kind="needs_conversion_layer",
-                     note="rvt/dwg/nwd 는 ODA/DDC 또는 Revit IFC export 로 IFC 화 후 재인제스트")
+                     note="rvt/nwd 는 ODA/DDC 또는 Revit IFC export 로 IFC 화 후 재인제스트")
         print("  [!] 폐쇄 포맷 — 변환 레이어 필요. IFC 로 export 후 재업로드 권장.")
 
     else:
