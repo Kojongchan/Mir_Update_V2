@@ -93,23 +93,56 @@ embed.html?gltf=<apsGltfUrl>
 
 ---
 
-## 3. ACC 파일을 우리 뷰어로 여는 흐름 (다음 단계, APS)
+## 3. ★ ACC 자료관리 파일을 우리 뷰어로 열기 (이게 핵심 테스트)
 
-지금은 APS 실연결을 미뤘지만, v1 이 이미 APS 를 하므로 붙이는 지점만 정리:
+> 목표: "지형이 뜬다"가 아니라 **ACC 에 있는 3D 모델을 우리 뷰어로 열면 뜨는가**.
 
+### 3-0. 대전제 (반드시 인지)
+우리 뷰어(iframe)는 **ACC/APS 를 직접 못 붙는다** — 정적 페이지 + 보안상 토큰 불가 +
+ACC 원본(rvt/SVF2)을 브라우저에서 못 읽음(런타임 파싱 금지). 따라서 항상:
 ```
-[v1 자료관리 탭] 파일 열기 → v1 이 이미 아는 모델 URN
-      │
-      ▼  (백엔드) integration/aps/convert_urn.mjs
-   APS 파생(SVF/SVF2) → svf-utils → glTF   (rvt/dwg/ifc 다 됨 — 오토데스크가 변환)
-      │  Supabase derived 에 캐시
-      ▼
+ACC 파일 ──(서버 변환)──► glTF/XKT ──► iframe 뷰어 로드
+```
+"우리 뷰어로 열린다" = **변환 결과가 뷰어에 뜬다**. 변환은 서버(v1 백엔드 or 우리 인제스트).
+
+### 3-1. 두 가지 경로 (ACC 파일 포맷에 따라)
+| ACC 파일 | 경로 | 상태 |
+|---|---|---|
+| **IFC / DWG / FBX** | v1 이 원본 **다운로드**(APS Data Management — v1 이미 가능) → **우리 인제스트**(IFC→XKT / DWG→선형) → 뷰어 | ✅ 검증됨, APS 번역 불필요 |
+| **RVT / NWD** | **APS SVF→glTF**(`integration/aps`, svf-utils — 오토데스크 변환 재사용) → 뷰어 | 스캐폴딩(크리덴셜 필요) |
+
+→ **ACC 모델이 IFC 면 제일 간단**: v1 이 IFC 를 다운로드만 하면(이미 됨) → `ingest/pipeline`
+   이 XKT 로 변환 → 뷰어가 연다. APS Model Derivative/SVF 안 거쳐도 됨.
+
+### 3-2. 흐름 (경로 A: IFC/DWG)
+```
+[v1 자료관리] 파일 열기
+   │  v1: APS Data Management 로 원본 파일 다운로드 (이미 하는 것)
+   ▼
+서버: ingest (IFC→XKT / DWG→lines)   ← 우리 검증된 변환
+   │  결과를 접근 가능한 URL 로 (Supabase derived 서명 URL 등)
+   ▼
+iframe.postMessage({type:"load", assets:[{kind:"xkt", url:<변환 XKT>}]})
+   ▼
+우리 뷰어: 렌더 + 클릭(pick.objectId) → MIR_SMART DB
+```
+
+### 3-3. 흐름 (경로 B: RVT/NWD — APS 변환)
+```
+[v1 자료관리] 파일 열기 → 모델 URN
+   │  integration/aps/convert_urn.mjs  (APS 파생 SVF → svf-utils → glTF)
+   ▼  APS_CLIENT_ID/SECRET (v1 앱 것 재사용, env)
 iframe.postMessage({type:"load", assets:[{kind:"gltf", url:<변환 glTF>}]})
 ```
-- 필요: `APS_CLIENT_ID` / `APS_CLIENT_SECRET` (v1 앱 것 재사용, env).
-- ⚠️ **좌표:** APS glTF 가 실좌표(공유좌표)로 나오는지 확인 — 지형과 자동 정합의 관건(R4).
-  오프셋 있으면 뷰어에 `origin` 보정 파라미터 추가 예정.
+- ⚠️ **좌표(R4):** SVF glTF 가 실좌표(공유좌표)로 나오는지 확인 — 지형 자동 정합의 관건.
 - 상세: `integration/aps/README.md`.
+
+### 3-4. v1 최소 테스트 레시피 (지금 바로 검증)
+1. ACC 자료관리에서 **3D 모델 1개**의 포맷 확인 (IFC? RVT?).
+2. **IFC 면:** v1 이 그 IFC 를 다운로드 → 서버에서 `convert2xkt` (또는 `ingest/pipeline`)
+   → 나온 `.xkt` 를 URL 로 → iframe 에 `postMessage({type:"load",assets:[{kind:"xkt",url}]})`.
+   → **뷰어에 모델이 뜨면 "ACC 파일이 우리 뷰어로 열린다" 확인 완료.**
+3. **RVT/NWD 면:** 경로 B (APS 크리덴셜 세팅 후).
 
 ---
 
