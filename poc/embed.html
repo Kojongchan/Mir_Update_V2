@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MIR 3D 뷰어 (임베드)</title>
+<link rel="icon" href="data:," />
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,sans-serif}
+  #canvas{width:100vw;height:100vh;display:block;background:#0b1020}
+  #hud{position:fixed;top:10px;left:10px;z-index:10;background:rgba(10,16,32,.78);color:#dfe7ff;
+    padding:8px 11px;border-radius:9px;font-size:12px;line-height:1.5;max-width:340px}
+  #hud b{color:#8fb8ff} #fps{font-weight:700;color:#7CFF9B} #fps.bad{color:#ff7c7c}
+  .row{margin:1px 0} #pick{color:#ffd479;font-weight:700}
+  #controls{position:fixed;bottom:10px;left:10px;z-index:10}
+  button{background:#2a3a66;color:#dfe7ff;border:1px solid #3f5aa6;padding:6px 10px;border-radius:7px;
+    font-size:12px;cursor:pointer;margin-right:5px} button:hover{background:#35488a}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="hud">
+  <div class="row"><b>MIR 3D 뷰어</b> · xeokit · 실좌표</div>
+  <div class="row">FPS <span id="fps">—</span> · <span id="status">대기</span></div>
+  <div class="row">선택: <span id="pick">—</span></div>
+</div>
+<div id="controls">
+  <button id="allBtn">전체 보기</button>
+  <button id="orbitBtn">자동 회전</button>
+</div>
+
+<script type="module">
+/*
+ * MIR 3D 임베드 뷰어 — v1(MIR_SMART) 이 iframe 으로 박아 쓴다.
+ *
+ * [로드 방법 1] URL 파라미터:
+ *   embed.html?demo=1                       // 번들 데모(지형+경사갱DWG)
+ *   embed.html?terrain=<glbUrl>             // 지형 glTF
+ *   embed.html?xkt=<url>&xkt=<url>          // 구조물 XKT (IFC→XKT)
+ *   embed.html?gltf=<url>                   // 구조물/모델 glTF (예: APS SVF→glTF)
+ *   embed.html?lines=<url>                  // DWG 선형 JSON
+ *
+ * [로드 방법 2] postMessage (부모 v1 → iframe):
+ *   iframe.contentWindow.postMessage({type:'load', assets:[
+ *      {kind:'terrain', url}, {kind:'xkt', url}, {kind:'gltf', url}, {kind:'lines', url}]}, '*')
+ *   {type:'clear'}  /  {type:'flyToAll'}
+ *
+ * [이벤트] iframe → 부모 v1:
+ *   {type:'viewerReady'}                    // 준비됨
+ *   {type:'loaded', kind, url}              // 에셋 로드 완료
+ *   {type:'pick', objectId}                 // 오브젝트 클릭 (→ MIR_SMART DB 조인)
+ *
+ * 좌표: 모든 모델이 동일 실좌표(EPSG 5186 등)면 re-center 없이 자동 정합.
+ */
+import { Viewer, GLTFLoaderPlugin, XKTLoaderPlugin, SceneModel,
+         AmbientLight, DirLight } from "./vendor/xeokit-sdk.min.es.js";
+
+const $ = id => document.getElementById(id);
+const post = m => parent && parent.postMessage(m, '*');
+
+// dtxEnabled:false — DWG lines(SceneModel lines)는 VBO 필요. 지형도 VBO 로 60fps 유지.
+const viewer = new Viewer({ canvasId:"canvas", dtxEnabled:false, transparent:false });
+viewer.scene.camera.perspective.far = 500000;
+viewer.scene.camera.perspective.near = 1.0;
+viewer.scene.clearLights();
+new AmbientLight(viewer.scene, { color:[1,1,1], intensity:0.85 });
+new DirLight(viewer.scene, { dir:[0.4,-0.9,-0.3], color:[1,1,1], intensity:1.0, space:"world" });
+new DirLight(viewer.scene, { dir:[-0.5,-0.7,0.5], color:[1,1,1], intensity:0.5, space:"world" });
+viewer.scene.gammaOutput = true;
+
+const gltfLoader = new GLTFLoaderPlugin(viewer);
+const xktLoader = new XKTLoaderPlugin(viewer);
+let modelSeq = 0;
+
+async function loadAsset(kind, url) {
+  const id = `m${modelSeq++}`;
+  $("status").textContent = `로딩: ${kind}…`;
+  if (kind === "terrain" || kind === "gltf") {
+    const m = gltfLoader.load({ id, src: url, edges:false });
+    m.on("loaded", () => onLoaded(kind, url));
+    m.on("error", e => $("status").textContent = "에러: " + e);
+  } else if (kind === "xkt") {
+    const m = xktLoader.load({ id, src: url });
+    m.on("loaded", () => onLoaded(kind, url));
+    m.on("error", e => $("status").textContent = "에러: " + e);
+  } else if (kind === "lines") {
+    const d = await (await fetch(url)).json();
+    const sm = new SceneModel(viewer.scene, { id, isModel:true });
+    sm.createMesh({ id:id+"-m", primitive:"lines", positions:d.positions, indices:d.indices,
+      origin:d.origin, color:[1.0,0.9,0.2] });
+    sm.createEntity({ id: d.source ? d.source.split('/').pop() : id, meshIds:[id+"-m"], isObject:true });
+    sm.finalize();
+    onLoaded(kind, url);
+  }
+}
+function onLoaded(kind, url) {
+  $("status").textContent = "렌더 중";
+  viewer.cameraFlight.flyTo({ aabb: viewer.scene.aabb });
+  post({ type:"loaded", kind, url });
+}
+
+// --- 파라미터 로드 ---
+const q = new URLSearchParams(location.search);
+async function loadFromParams() {
+  if (q.get("demo")) {
+    await loadAsset("terrain", "./out/ground_clamp.glb");
+    await loadAsset("lines", "./out/dwg_lines.json");
+    return;
+  }
+  const jobs = [];
+  for (const t of q.get("terrain") ? [q.get("terrain")] : []) jobs.push(loadAsset("terrain", t));
+  for (const u of q.getAll("gltf")) jobs.push(loadAsset("gltf", u));
+  for (const u of q.getAll("xkt")) jobs.push(loadAsset("xkt", u));
+  for (const u of q.getAll("lines")) jobs.push(loadAsset("lines", u));
+  await Promise.all(jobs);
+  if (!jobs.length) $("status").textContent = "load 대기 (postMessage 또는 ?demo=1)";
+}
+
+// --- postMessage (부모 v1) ---
+window.addEventListener("message", async (e) => {
+  const m = e.data || {};
+  if (m.type === "load" && Array.isArray(m.assets)) { for (const a of m.assets) await loadAsset(a.kind, a.url); }
+  else if (m.type === "clear") {
+    for (const id in viewer.scene.models) viewer.scene.models[id].destroy();
+    modelSeq = 0;
+  }
+  else if (m.type === "flyToAll") viewer.cameraFlight.flyTo({ aabb: viewer.scene.aabb });
+});
+
+// --- 피킹 → MIR_SMART DB 훅 ---
+viewer.scene.input.on("mouseclicked", (coords) => {
+  const hit = viewer.scene.pick({ canvasPos: coords });
+  const id = hit && hit.entity && hit.entity.isObject ? hit.entity.id : null;
+  $("pick").textContent = id || "(빈 곳)";
+  if (id) post({ type:"pick", objectId: id });
+});
+
+// --- FPS ---
+let last=performance.now(), frames=0, acc=0;
+(function tick(now){ const dt=now-last; last=now; acc+=dt; frames++;
+  if(acc>=500){ const f=frames*1000/acc; $("fps").textContent=f.toFixed(0);
+    $("fps").classList.toggle("bad", f<45); frames=0; acc=0; } requestAnimationFrame(tick); })(performance.now());
+let orbiting=false;
+(function orbit(){ if(orbiting) viewer.scene.camera.orbitYaw(0.3); requestAnimationFrame(orbit); })();
+$("orbitBtn").onclick=()=>{ orbiting=!orbiting; };
+$("allBtn").onclick=()=> viewer.cameraFlight.flyTo({ aabb: viewer.scene.aabb });
+
+post({ type:"viewerReady" });
+loadFromParams();
+</script>
+</body>
+</html>

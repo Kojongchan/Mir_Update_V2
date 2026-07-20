@@ -6,6 +6,7 @@ rvt·dwg·ifc·fbx 를 좌표 포함 3D 로 렌더링하고 MIR_SMART(물량/진
 
 > 전체 설계·근거·리스크는 [`PROJECT_BRIEF.md`](./PROJECT_BRIEF.md) (단일 진실 소스).
 > 세션마다 지킬 핵심 규칙은 [`CLAUDE.md`](./CLAUDE.md).
+> **v1 통합/인수인계: [`docs/V1_INTEGRATION.md`](./docs/V1_INTEGRATION.md).**
 
 ## 아키텍처 (듀얼 엔진 / 모드 분리)
 - **BIM 검토 모드** = xeokit SDK (더블 프리시전, 실좌표 네이티브) — 주력.
