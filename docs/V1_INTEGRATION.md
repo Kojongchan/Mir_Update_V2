@@ -2,7 +2,38 @@
 
 > 목적: 지금까지 이 레포(mir_update_v2)에서 검증한 **자체 3D 뷰어**를 v1에 붙여,
 > v1의 **자료관리 / ACC / APS 연결을 그대로 쓰면서** 새 뷰어로 여는 것을 테스트한다.
-> 방식: v1에 **"3D뷰(신규 테스트)" 메뉴**를 추가하고, 우리 뷰어를 **iframe 임베드**.
+
+---
+
+## ⛔ 절대 하지 말 것 (구현 전 필독 — 여기서 틀리면 렉이 그대로 돌아온다)
+
+이 프로젝트의 **존재 이유는 렉 탈출**이다. 아래 두 가지는 **논문 때 터진 That Open 실패의 원인**
+이자 **ACC 렉의 원인**이며, **금지**다 (PROJECT_BRIEF §2.2 / §16):
+
+| 금지 (❌) | 이유 | 대체 (✅) |
+|---|---|---|
+| **Three.js** 로 렌더 | float32 → 60만대 실좌표 지터, 최적화 부재 | **xeokit SDK** (더블프리시전, DTX/LOD/컬링) |
+| **web-ifc** 등으로 **브라우저에서 IFC 런타임 파싱** | 대용량 IFC 를 브라우저 WASM 메모리에 통째로 → 메모리 폭발 = 렉 | **서버 사전변환 IFC→XKT**(convert2xkt). 브라우저는 **작은 XKT 만** 로드 |
+| 브라우저가 원본(.ifc/.rvt)을 직접 읽음 | 위와 동일 | 서버가 XKT/glTF 로 굽고 뷰어는 스트리밍만 |
+
+> **"Three.js + web-ifc 로 .ifc 를 브라우저에서 파싱해 렌더"** = 우리가 **버리기로 한 바로 그 구조**.
+> 만약 v1 메뉴가 그렇게 만들어졌다면 **렉이 나는 게 정상** — 아래 올바른 스택으로 교체할 것.
+
+## ✅ 올바른 스택 (반드시 이것)
+```
+IFC/RVT/DWG (원본)
+   │  ★ 서버에서 변환 (브라우저 아님)
+   │     - IFC → XKT : convert2xkt  (ingest/ifc2xkt)
+   │     - RVT/NWD/DWG → APS SVF→glTF (integration/aps)  ← Autodesk 변환 재사용
+   ▼
+작은 XKT/glTF  ──►  브라우저: xeokit 로 로드 (web-ifc/Three.js 아님)
+```
+- 뷰어 엔진 = **xeokit** (`@xeokit/xeokit-sdk`). Three.js 아님.
+- IFC 파싱 = **서버(convert2xkt)**. web-ifc 브라우저 파싱 아님.
+- 이 문서의 `poc/embed.html` 이 정확히 이 방식(xeokit + XKT 로드)의 참조 구현이다.
+
+> 방식: v1에 **"3D뷰(신규 테스트)" 메뉴**를 추가하고, 우리 xeokit 뷰어를 **iframe 임베드**
+> (또는 xeokit SDK 를 직접 통합 — §1-3). **어느 쪽이든 엔진은 xeokit, IFC 는 서버 변환.**
 
 ---
 
@@ -50,6 +81,39 @@ function ThreeDTestView() {
 }
 ```
 v1 라우팅/메뉴에 `ThreeDTestView` 를 "3D뷰(신규 테스트)" 로 등록.
+
+### 1-3. iframe 없이 직접 통합 (xeokit SDK) — ★ v1 이 원하는 방식
+iframe 이 싫으면 xeokit 을 v1 앱에 **직접** 심는다. **단 엔진은 반드시 xeokit,
+IFC 파싱은 서버(convert2xkt). Three.js/web-ifc 금지(⛔ 위 참조).**
+```bash
+npm install @xeokit/xeokit-sdk       # ← Three.js 아님, web-ifc 아님
+```
+```jsx
+import { useEffect, useRef } from "react";
+import { Viewer, XKTLoaderPlugin } from "@xeokit/xeokit-sdk";
+
+function ThreeDView({ xktUrl }) {        // xktUrl = 서버가 IFC→XKT 로 구운 파일 URL
+  const ref = useRef();
+  useEffect(() => {
+    const viewer = new Viewer({ canvasId: ref.current.id, dtxEnabled: true }); // 더블프리시전
+    new XKTLoaderPlugin(viewer).load({ id: "m", src: xktUrl });   // ★ web-ifc 로 파싱하지 않음
+    viewer.scene.input.on("mouseclicked", (c) => {
+      const hit = viewer.scene.pick({ canvasPos: c });
+      if (hit?.entity?.isObject) {/* hit.entity.id → MIR_SMART DB 조인 */}
+    });
+    return () => viewer.destroy();
+  }, [xktUrl]);
+  return <canvas id="mir3d" ref={ref} style={{ width: "100%", height: "100%" }} />;
+}
+```
+**IFC 는 브라우저에서 파싱하지 말고 서버에서 변환** (v1 백엔드 or 우리 인제스트):
+```bash
+convert2xkt -s model.ifc -f ifc -o model.xkt   # @xeokit/xeokit-convert
+```
+→ 나온 `model.xkt` URL 을 위 `xktUrl` 로 넘긴다. "로컬 .ifc 드롭" UX 도 동일 —
+드롭한 파일을 **서버로 보내 convert2xkt → XKT** 받아 로드. **브라우저 web-ifc 파싱 금지.**
+
+> 참조 구현: `poc/embed.html` (동일 로직을 iframe 형태로). 엔진·로더가 정확히 이것.
 
 ---
 
